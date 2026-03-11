@@ -813,12 +813,25 @@ function clearAll() {
 // ============================
 // EXPORT DOCX
 // ============================
+function loadDocxLib() {
+  if (window.docx) return Promise.resolve(window.docx);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+    script.onload  = () => resolve(window.docx);
+    script.onerror = () => reject(new Error('CDN no disponible'));
+    document.head.appendChild(script);
+  });
+}
+
 async function exportDOCX() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
 
-  const lib = window.docx;
-  if (!lib) {
-    alert('La librería Word no está disponible aún. Verifica tu conexión e intenta de nuevo en unos segundos.');
+  let lib;
+  try {
+    lib = await loadDocxLib();
+  } catch {
+    alert('No se pudo cargar la librería Word. Verifica tu conexión a internet e intenta de nuevo.');
     return;
   }
 
