@@ -530,7 +530,6 @@ function buildExportHTML() {
 </head>
 <body>
   <div class="preview-title">${escHtml(title)}</div>
-  <div class="preview-meta">Versión: ${escHtml(version)} · Generado: ${date} · ${screens.length} sección(es)</div>
   ${sectionsHTML}
 </body>
 </html>`;
@@ -745,7 +744,7 @@ function exportMarkdown() {
   const date = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
   let md = `# ${title}\n\n`;
-  md += `**Versión:** ${version} &nbsp;·&nbsp; **Generado:** ${date}\n\n---\n\n`;
+
 
   screens.forEach((s, idx) => {
     md += `## ${String(idx + 1).padStart(2, '0')}. ${s.sectionTitle || s.name}\n\n`;
@@ -775,7 +774,7 @@ function openPreview() {
   const { title, version, date, sectionsHTML } = buildPreviewContent();
   document.getElementById('manualPreview').innerHTML = `
     <div class="preview-title">${escHtml(title)}</div>
-    <div class="preview-meta">Versión: ${escHtml(version)} · Generado: ${date} · ${screens.length} sección(es)</div>
+
     ${sectionsHTML}
   `;
   document.getElementById('previewModal').classList.add('open');
@@ -956,7 +955,7 @@ async function exportDOCX() {
   const doc = new Document({
     creator: 'DocShot',
     title,
-    description: `Manual generado con DocShot · ${date}`,
+    description: "Manual de usuario",
     styles: {
       paragraphStyles: [{
         id: 'Heading1',
