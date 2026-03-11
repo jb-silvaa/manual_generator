@@ -811,13 +811,103 @@ function clearAll() {
 }
 
 // ============================
+// CANVAS PIN COMPOSITING
+// ============================
+
+/**
+ * Draws a map-pin shape on a canvas context.
+ * tipX/tipY is the exact point the pin "points to" on the image.
+ */
+function drawPinOnCanvas(ctx, tipX, tipY, color, num, size) {
+  const r    = size * 0.42;       // circle head radius
+  const tailH = size * 0.55;      // tail height below circle center
+  const headCY = tipY - tailH;    // circle center Y
+
+  ctx.save();
+
+  // Drop shadow
+  ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur   = size * 0.25;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = size * 0.08;
+
+  // Tail triangle
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - r * 0.55, headCY + r * 0.6);
+  ctx.lineTo(tipX + r * 0.55, headCY + r * 0.6);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Circle head (shadow only on tail, reset before circle for cleaner look)
+  ctx.shadowColor = 'transparent';
+  ctx.beginPath();
+  ctx.arc(tipX, headCY, r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Circle border
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth   = Math.max(1, size * 0.06);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Number label
+  ctx.save();
+  ctx.font         = `bold ${Math.round(r * 1.05)}px monospace`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = 'white';
+  ctx.fillText(String(num), tipX, headCY);
+  ctx.restore();
+}
+
+/**
+ * Returns a Promise<{ dataUrl: string, width: number, height: number }>
+ * with the screen image composited with all its pin markers drawn on top.
+ */
+function compositeImageWithPins(screen) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas  = document.createElement('canvas');
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx     = canvas.getContext('2d');
+
+      ctx.drawImage(img, 0, 0);
+
+      if (screen.annotations.length) {
+        // Pin size scales with image but stays between 28–80 px
+        const pinSize = Math.max(28, Math.min(img.naturalWidth * 0.035, 80));
+        for (const ann of screen.annotations) {
+          const x = (ann.x / 100) * img.naturalWidth;
+          const y = (ann.y / 100) * img.naturalHeight;
+          drawPinOnCanvas(ctx, x, y, ann.color, ann.num, pinSize);
+        }
+      }
+
+      resolve({
+        dataUrl: canvas.toDataURL('image/png'),
+        width:   img.naturalWidth,
+        height:  img.naturalHeight,
+      });
+    };
+    img.onerror = () => resolve({ dataUrl: screen.dataUrl, width: 800, height: 600 });
+    img.src = screen.dataUrl;
+  });
+}
+
+// ============================
 // EXPORT DOCX
 // ============================
 function loadDocxLib() {
   if (window.docx) return Promise.resolve(window.docx);
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+    script.src = 'https://unpkg.com/docx@7.8.2/build/index.js';
     script.onload  = () => resolve(window.docx);
     script.onerror = () => reject(new Error('CDN no disponible'));
     document.head.appendChild(script);
@@ -854,23 +944,6 @@ async function exportDOCX() {
     return arr;
   }
 
-  function getImageMime(dataUrl) {
-    if (dataUrl.includes('image/png'))  return 'png';
-    if (dataUrl.includes('image/gif'))  return 'gif';
-    if (dataUrl.includes('image/bmp'))  return 'bmp';
-    if (dataUrl.includes('image/webp')) return 'png'; // fallback
-    return 'jpg';
-  }
-
-  function getImageDimensions(dataUrl) {
-    return new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = () => resolve({ w: 800, h: 600 });
-      img.src = dataUrl;
-    });
-  }
-
   // Max image width: ~6.3 inches at 96dpi = 605 px
   const MAX_W = 605;
 
@@ -879,7 +952,7 @@ async function exportDOCX() {
   // ── Cover ──────────────────────────────────────────
   children.push(
     new Paragraph({
-      children: [new TextRun({ text: 'MANUAL DE USUARIO', size: 20, color: '94a3b8', characterSpacing: 120 })],
+      children: [new TextRun({ text: 'MANUAL DE USUARIO', size: 20, color: '94a3b8' })],
       spacing: { before: convertInchesToTwip(2.5), after: 200 },
     }),
     new Paragraph({
@@ -921,18 +994,18 @@ async function exportDOCX() {
       }));
     }
 
-    // Image
+    // Image — composited with pin markers drawn on top
     try {
-      const { w, h } = await getImageDimensions(screen.dataUrl);
-      const scale    = w > MAX_W ? MAX_W / w : 1;
-      const dispW    = Math.round(w * scale);
-      const dispH    = Math.round(h * scale);
+      const { dataUrl: compositeUrl, width: w, height: h } = await compositeImageWithPins(screen);
+      const scale = w > MAX_W ? MAX_W / w : 1;
+      const dispW = Math.round(w * scale);
+      const dispH = Math.round(h * scale);
 
       children.push(new Paragraph({
         children: [new ImageRun({
-          data: dataUrlToUint8Array(screen.dataUrl),
+          data: dataUrlToUint8Array(compositeUrl),
           transformation: { width: dispW, height: dispH },
-          type: getImageMime(screen.dataUrl),
+          type: 'png',
         })],
         spacing: { after: 160 },
       }));
