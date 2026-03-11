@@ -952,24 +952,9 @@ async function exportDOCX() {
   // ── Cover ──────────────────────────────────────────
   children.push(
     new Paragraph({
-      children: [new TextRun({ text: 'MANUAL DE USUARIO', size: 20, color: '94a3b8' })],
-      spacing: { before: convertInchesToTwip(2.5), after: 200 },
-    }),
-    new Paragraph({
       children: [new TextRun({ text: title, bold: true, size: 64, color: '0f172a' })],
       spacing: { after: 300 },
       border: { bottom: { style: BorderStyle.THICK, size: 20, color: '0f172a', space: 6 } },
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({ text: `Versión ${version}`, size: 22, color: '475569' }),
-        new TextRun({ text: '   ·   ', size: 22, color: 'cbd5e1' }),
-        new TextRun({ text: date, size: 22, color: '475569' }),
-        new TextRun({ text: '   ·   ', size: 22, color: 'cbd5e1' }),
-        new TextRun({ text: `${screens.length} sección${screens.length !== 1 ? 'es' : ''}`, size: 22, color: '475569' }),
-      ],
-      spacing: { before: 200 },
-      pageBreakBefore: false,
     }),
   );
 
@@ -979,7 +964,7 @@ async function exportDOCX() {
 
     // Section heading (starts new page after cover)
     children.push(new Paragraph({
-      children: [new TextRun({ text: sectionLabel, bold: true, size: 32, color: '0f172a' })],
+      children: [new TextRun({ text: sectionLabel, bold: true, size: 36, color: '0f172a' })],
       heading: HeadingLevel.HEADING_1,
       spacing: { before: 400, after: 160 },
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'e2e8f0', space: 4 } },
@@ -989,7 +974,7 @@ async function exportDOCX() {
     // Description
     if (screen.description) {
       children.push(new Paragraph({
-        children: [new TextRun({ text: screen.description, size: 22, color: '475569' })],
+        children: [new TextRun({ text: screen.description, size: 28, color: '475569' })],
         spacing: { after: 200 },
       }));
     }
@@ -1016,18 +1001,18 @@ async function exportDOCX() {
     // Annotations
     if (screen.annotations.length) {
       children.push(new Paragraph({
-        children: [new TextRun({ text: 'Anotaciones', bold: true, size: 22, color: '0f172a' })],
+        children: [new TextRun({ text: 'Anotaciones', bold: true, size: 26, color: '0f172a' })],
         spacing: { before: 120, after: 80 },
       }));
 
       for (const ann of screen.annotations) {
         children.push(new Paragraph({
           children: [
-            new TextRun({ text: `${ann.num}.  `, bold: true, size: 20, color: '0f172a' }),
-            new TextRun({ text: ann.label, bold: true, size: 20, color: '0f172a' }),
+            new TextRun({ text: `${ann.num}.  `, bold: true, size: 24, color: '0f172a' }),
+            new TextRun({ text: ann.label, bold: true, size: 24, color: '0f172a' }),
             ...(ann.desc
-              ? [new TextRun({ text: ' — ', size: 20, color: 'cbd5e1' }),
-                 new TextRun({ text: ann.desc, size: 20, color: '475569' })]
+              ? [new TextRun({ text: ': ', bold:true,size: 24, color: '0f172a' }),
+                 new TextRun({ text: ann.desc, size: 24, color: '475569' })]
               : []),
           ],
           spacing: { before: 60, after: 60 },
