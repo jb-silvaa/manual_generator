@@ -504,10 +504,14 @@ main {
   height: var(--pin-size);
   border-radius: 50% 50% 50% 0;
   transform: translate(-50%, -100%) rotate(-45deg);
-  cursor: pointer;
+  cursor: grab;
   z-index: 20;
   transition: transform 0.15s, filter 0.15s;
   border: 2px solid rgba(0, 0, 0, 0.3);
+}
+
+.pin:active {
+  cursor: grabbing;
 }
 
 .pin:hover {

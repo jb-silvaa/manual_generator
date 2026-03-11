@@ -226,6 +226,12 @@ function renderColorPicker() {
   });
 }
 
+// Reassigns num 1,2,3… based on current array order after any add/delete
+function renumberAnnotations(screen) {
+  screen.annotations.forEach((ann, idx) => { ann.num = idx + 1; });
+  screen.pinCount = screen.annotations.length;
+}
+
 function handleImageClick(e) {
   if (!pinMode) return;
   const screen = getActive();
@@ -237,18 +243,19 @@ function handleImageClick(e) {
   const x = ((e.clientX - rect.left) / rect.width) * 100;
   const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-  screen.pinCount = (screen.pinCount || 0) + 1;
+  const nextNum = screen.annotations.length + 1;
   const ann = {
     id: 'ann_' + Date.now(),
     x,
     y,
-    label: 'Elemento ' + screen.pinCount,
+    label: 'Elemento ' + nextNum,
     desc: '',
     color: selectedPinColor,
-    num: screen.pinCount,
+    num: nextNum,
   };
 
   screen.annotations.push(ann);
+  renumberAnnotations(screen);
   selectedAnnotationId = ann.id;
   renderPins();
   renderAnnotations();
@@ -273,14 +280,48 @@ function renderPins() {
     pin.style.cssText = `left:${ann.x}%;top:${ann.y}%;background:${ann.color};`;
     pin.innerHTML = `<span class="pin-number">${ann.num}</span>`;
     pin.title = ann.label;
-    pin.onclick = e => {
+
+    // Select on click (only if not a drag)
+    pin.addEventListener('click', e => { e.stopPropagation(); });
+
+    // Drag to reposition
+    pin.addEventListener('mousedown', e => {
       e.stopPropagation();
+      e.preventDefault();
       selectedAnnotationId = ann.id;
       renderPins();
       renderAnnotations();
-    };
+      startPinDrag(e, ann);
+    });
+
     wrapper.appendChild(pin);
   });
+}
+
+function startPinDrag(e, ann) {
+  pushUndo();
+  const imgEl = document.getElementById('mainImage');
+  let moved = false;
+
+  const onMove = moveE => {
+    moved = true;
+    const rect = imgEl.getBoundingClientRect();
+    ann.x = Math.max(0, Math.min(100, ((moveE.clientX - rect.left) / rect.width) * 100));
+    ann.y = Math.max(0, Math.min(100, ((moveE.clientY - rect.top) / rect.height) * 100));
+    renderPins();
+  };
+
+  const onUp = upE => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    const dx = upE.clientX - e.clientX;
+    const dy = upE.clientY - e.clientY;
+    // If barely moved (<5px), it was a click — discard the undo entry
+    if (!moved || Math.sqrt(dx * dx + dy * dy) < 5) undoStack.pop();
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 function togglePinMode() {
@@ -384,6 +425,7 @@ function deleteAnnotation(id) {
   if (!screen) return;
   screen.annotations = screen.annotations.filter(a => a.id !== id);
   if (selectedAnnotationId === id) selectedAnnotationId = null;
+  renumberAnnotations(screen);
   renderPins();
   renderAnnotations();
   renderScreensList();
