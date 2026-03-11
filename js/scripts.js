@@ -536,6 +536,208 @@ function buildExportHTML() {
 </html>`;
 }
 
+function exportPDF() {
+  if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
+  const { title, version, date, sectionsHTML } = buildPreviewContent();
+  const filename = (document.getElementById('manualTitle').value || 'manual')
+    .replace(/\s+/g, '-').toLowerCase();
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>${escHtml(title)}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #0f172a;
+      font-size: 13px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 10mm;
+      page-break-after: always;
+      break-after: page;
+    }
+    .cover-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+    .cover-title {
+      font-size: 32px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    .cover-meta {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .cover-rule {
+      width: 48px;
+      height: 4px;
+      background: #0f172a;
+      border-radius: 2px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Section ── */
+    .preview-section {
+      break-before: page;
+      page-break-before: always;
+      padding-bottom: 8mm;
+    }
+    .preview-section:first-child { break-before: auto; page-break-before: avoid; }
+
+    .preview-section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .preview-section-num {
+      background: #0f172a;
+      color: white;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    .preview-section-desc {
+      font-size: 12px;
+      color: #475569;
+      margin: 8px 0 10px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* ── Image ── */
+    .preview-img-container {
+      position: relative;
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .preview-img-container img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+    }
+
+    /* ── Pins ── */
+    .preview-pin {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border-radius: 50% 50% 50% 0;
+      transform: translate(-50%, -100%) rotate(-45deg);
+      border: 1.5px solid rgba(0,0,0,0.25);
+    }
+    .preview-pin-num {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) rotate(45deg);
+      font-size: 9px;
+      font-weight: 700;
+      color: white;
+      font-family: monospace;
+    }
+
+    /* ── Annotations list ── */
+    .preview-annotations {
+      margin-top: 6px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .preview-ann-item {
+      display: flex;
+      gap: 8px;
+      padding: 6px 10px;
+      background: #f8fafc;
+      border-left: 3px solid #e2e8f0;
+      margin-bottom: 4px;
+      align-items: flex-start;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .preview-ann-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: white;
+      font-family: monospace;
+      margin-top: 1px;
+    }
+    .preview-ann-label { font-size: 11px; font-weight: 600; color: #0f172a; font-family: monospace; }
+    .preview-ann-desc { font-size: 12px; color: #475569; margin-top: 2px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+  <!-- Cover page -->
+  <div class="cover">
+    <div class="cover-label">Manual de usuario</div>
+    <div class="cover-rule"></div>
+    <div class="cover-title">${escHtml(title)}</div>
+    <div class="cover-meta">Versión ${escHtml(version)} &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${screens.length} sección${screens.length !== 1 ? 'es' : ''}</div>
+  </div>
+
+  ${sectionsHTML}
+
+  <script>
+    window.onload = function() {
+      document.title = ${JSON.stringify(filename)};
+      setTimeout(function() { window.print(); }, 400);
+    };
+  <\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(url);
+    alert('El navegador bloqueó la ventana emergente. Por favor, permite ventanas emergentes para este sitio e intenta de nuevo.');
+    return;
+  }
+  // Revoke after the window has had time to load
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 function exportMarkdown() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
   const title = document.getElementById('manualTitle').value || 'Manual de Usuario';
@@ -608,6 +810,193 @@ function clearAll() {
   renderScreensList();
   showEmpty();
 }
+
+// ============================
+// EXPORT DOCX
+// ============================
+async function exportDOCX() {
+  if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
+
+  const lib = window.docx;
+  if (!lib) {
+    alert('La librería Word no está disponible aún. Verifica tu conexión e intenta de nuevo en unos segundos.');
+    return;
+  }
+
+  const {
+    Document, Paragraph, TextRun, ImageRun, Packer,
+    BorderStyle, HeadingLevel,
+    convertInchesToTwip,
+  } = lib;
+
+  const title    = document.getElementById('manualTitle').value  || 'Manual de Usuario';
+  const version  = document.getElementById('manualVersion').value || 'v1.0';
+  const date     = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+  const filename = title.replace(/\s+/g, '-').toLowerCase();
+
+  // Helpers
+  function dataUrlToUint8Array(dataUrl) {
+    const binary = atob(dataUrl.split(',')[1]);
+    const arr = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    return arr;
+  }
+
+  function getImageMime(dataUrl) {
+    if (dataUrl.includes('image/png'))  return 'png';
+    if (dataUrl.includes('image/gif'))  return 'gif';
+    if (dataUrl.includes('image/bmp'))  return 'bmp';
+    if (dataUrl.includes('image/webp')) return 'png'; // fallback
+    return 'jpg';
+  }
+
+  function getImageDimensions(dataUrl) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve({ w: 800, h: 600 });
+      img.src = dataUrl;
+    });
+  }
+
+  // Max image width: ~6.3 inches at 96dpi = 605 px
+  const MAX_W = 605;
+
+  const children = [];
+
+  // ── Cover ──────────────────────────────────────────
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'MANUAL DE USUARIO', size: 20, color: '94a3b8', characterSpacing: 120 })],
+      spacing: { before: convertInchesToTwip(2.5), after: 200 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: title, bold: true, size: 64, color: '0f172a' })],
+      spacing: { after: 300 },
+      border: { bottom: { style: BorderStyle.THICK, size: 20, color: '0f172a', space: 6 } },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: `Versión ${version}`, size: 22, color: '475569' }),
+        new TextRun({ text: '   ·   ', size: 22, color: 'cbd5e1' }),
+        new TextRun({ text: date, size: 22, color: '475569' }),
+        new TextRun({ text: '   ·   ', size: 22, color: 'cbd5e1' }),
+        new TextRun({ text: `${screens.length} sección${screens.length !== 1 ? 'es' : ''}`, size: 22, color: '475569' }),
+      ],
+      spacing: { before: 200 },
+      pageBreakBefore: false,
+    }),
+  );
+
+  // ── Sections ────────────────────────────────────────
+  for (const [idx, screen] of screens.entries()) {
+    const sectionLabel = `${String(idx + 1).padStart(2, '0')}. ${screen.sectionTitle || screen.name}`;
+
+    // Section heading (starts new page after cover)
+    children.push(new Paragraph({
+      children: [new TextRun({ text: sectionLabel, bold: true, size: 32, color: '0f172a' })],
+      heading: HeadingLevel.HEADING_1,
+      spacing: { before: 400, after: 160 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'e2e8f0', space: 4 } },
+      pageBreakBefore: true,
+    }));
+
+    // Description
+    if (screen.description) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: screen.description, size: 22, color: '475569' })],
+        spacing: { after: 200 },
+      }));
+    }
+
+    // Image
+    try {
+      const { w, h } = await getImageDimensions(screen.dataUrl);
+      const scale    = w > MAX_W ? MAX_W / w : 1;
+      const dispW    = Math.round(w * scale);
+      const dispH    = Math.round(h * scale);
+
+      children.push(new Paragraph({
+        children: [new ImageRun({
+          data: dataUrlToUint8Array(screen.dataUrl),
+          transformation: { width: dispW, height: dispH },
+          type: getImageMime(screen.dataUrl),
+        })],
+        spacing: { after: 160 },
+      }));
+    } catch (err) {
+      console.warn('Error embedding image for screen:', screen.name, err);
+    }
+
+    // Annotations
+    if (screen.annotations.length) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: 'Anotaciones', bold: true, size: 22, color: '0f172a' })],
+        spacing: { before: 120, after: 80 },
+      }));
+
+      for (const ann of screen.annotations) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: `${ann.num}.  `, bold: true, size: 20, color: '0f172a' }),
+            new TextRun({ text: ann.label, bold: true, size: 20, color: '0f172a' }),
+            ...(ann.desc
+              ? [new TextRun({ text: ' — ', size: 20, color: 'cbd5e1' }),
+                 new TextRun({ text: ann.desc, size: 20, color: '475569' })]
+              : []),
+          ],
+          spacing: { before: 60, after: 60 },
+          indent: { left: convertInchesToTwip(0.2) },
+        }));
+      }
+    }
+  }
+
+  // Build & download
+  const doc = new Document({
+    creator: 'DocShot',
+    title,
+    description: `Manual generado con DocShot · ${date}`,
+    styles: {
+      paragraphStyles: [{
+        id: 'Heading1',
+        name: 'Heading 1',
+        run: { bold: true, size: 32, color: '0f172a' },
+      }],
+    },
+    sections: [{ children }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename + '.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================
+// EXPORT DROPDOWN
+// ============================
+function toggleExportMenu(id = 'exportDropdown') {
+  const dropdown = document.getElementById(id);
+  const isOpen = dropdown.classList.contains('open');
+  // Close all dropdowns first
+  document.querySelectorAll('.export-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (!isOpen) dropdown.classList.add('open');
+}
+
+function closeExportMenu(id = 'exportDropdown') {
+  document.getElementById(id)?.classList.remove('open');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.export-dropdown')) {
+    document.querySelectorAll('.export-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+});
 
 // ============================
 // KEYBOARD SHORTCUTS

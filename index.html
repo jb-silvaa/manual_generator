@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Manual Generator — DocShot</title>
   <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js" defer></script>
 </head>
 
 <body>
@@ -32,9 +33,41 @@
     <!-- Acciones principales -->
     <div class="header-actions">
       <button class="btn btn-ghost" onclick="clearAll()">✕ Limpiar</button>
-      <button class="btn btn-ghost" onclick="exportMarkdown()">↓ Markdown</button>
       <button class="btn btn-blue" onclick="openPreview()">👁 Vista previa</button>
-      <button class="btn btn-primary" onclick="exportHTML()">↓ HTML</button>
+      <div class="export-dropdown" id="exportDropdown">
+        <button class="btn btn-primary" onclick="toggleExportMenu()">↓ Exportar ▾</button>
+        <div class="export-menu" id="exportMenu">
+          <button class="export-item" onclick="exportHTML(); closeExportMenu()">
+            <span class="export-item-icon">🌐</span>
+            <span>
+              <strong>HTML</strong>
+              <small>Página web interactiva</small>
+            </span>
+          </button>
+          <button class="export-item" onclick="exportPDF(); closeExportMenu()">
+            <span class="export-item-icon">📄</span>
+            <span>
+              <strong>PDF</strong>
+              <small>Documento con portada</small>
+            </span>
+          </button>
+          <button class="export-item" onclick="exportMarkdown(); closeExportMenu()">
+            <span class="export-item-icon">✍️</span>
+            <span>
+              <strong>Markdown</strong>
+              <small>Para GitHub / Notion / Obsidian</small>
+            </span>
+          </button>
+          <div class="export-menu-divider"></div>
+          <button class="export-item" onclick="exportDOCX(); closeExportMenu()">
+            <span class="export-item-icon">📝</span>
+            <span>
+              <strong>Word (.docx)</strong>
+              <small>Microsoft Word / LibreOffice</small>
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -111,8 +144,28 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closePreview()">Cerrar</button>
-        <button class="btn btn-ghost" onclick="exportMarkdown()">↓ Exportar Markdown</button>
-        <button class="btn btn-primary" onclick="exportHTML()">↓ Exportar HTML</button>
+        <div class="export-dropdown" id="exportDropdownModal">
+          <button class="btn btn-primary" onclick="toggleExportMenu('exportDropdownModal')">↓ Exportar ▾</button>
+          <div class="export-menu" id="exportMenuModal">
+            <button class="export-item" onclick="exportHTML(); closeExportMenu('exportDropdownModal')">
+              <span class="export-item-icon">🌐</span>
+              <span><strong>HTML</strong><small>Página web interactiva</small></span>
+            </button>
+            <button class="export-item" onclick="exportPDF(); closeExportMenu('exportDropdownModal')">
+              <span class="export-item-icon">📄</span>
+              <span><strong>PDF</strong><small>Documento con portada</small></span>
+            </button>
+            <button class="export-item" onclick="exportMarkdown(); closeExportMenu('exportDropdownModal')">
+              <span class="export-item-icon">✍️</span>
+              <span><strong>Markdown</strong><small>Para GitHub / Notion / Obsidian</small></span>
+            </button>
+            <div class="export-menu-divider"></div>
+            <button class="export-item" onclick="exportDOCX(); closeExportMenu('exportDropdownModal')">
+              <span class="export-item-icon">📝</span>
+              <span><strong>Word (.docx)</strong><small>Microsoft Word / LibreOffice</small></span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
