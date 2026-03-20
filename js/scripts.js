@@ -787,7 +787,6 @@ function exportPDF() {
     <div class="cover-label">Manual de usuario</div>
     <div class="cover-rule"></div>
     <div class="cover-title">${escHtml(title)}</div>
-    <div class="cover-meta">Versión ${escHtml(version)} &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${screens.length} sección${screens.length !== 1 ? 'es' : ''}</div>
   </div>
 
   ${sectionsHTML}
