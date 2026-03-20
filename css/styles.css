@@ -30,7 +30,47 @@ body {
   color: var(--text);
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
+}
+
+/* ── AUTO-SAVE BANNER ── */
+#autoSaveBanner {
+  background: #1a2235;
+  border-bottom: 1px solid var(--accent2);
+  color: var(--text);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.autosave-banner-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-accent {
+  background: var(--accent2);
+  color: #fff;
+  border: none;
+}
+
+.btn-accent:hover {
+  background: #2563eb;
+}
+
+.autosave-status {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.4s;
+  margin-left: 4px;
 }
 
 /* ── HEADER ── */

@@ -3,6 +3,8 @@
 // ============================
 const PIN_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
 const MAX_UNDO = 20;
+const AUTOSAVE_KEY = 'docshot_autosave';
+let _autoSaveTimer = null;
 
 // screens: [{ id, name, dataUrl, sectionTitle, description, pinCount, annotations: [{id, x, y, label, desc, color, num}] }]
 let screens = [];
@@ -47,6 +49,7 @@ function undo() {
   } else {
     showEmpty();
   }
+  scheduleAutoSave();
 }
 
 // ============================
@@ -83,7 +86,7 @@ function loadFiles(files) {
     });
   });
 
-  chain.finally(() => { fileInput.value = ''; });
+  chain.finally(() => { fileInput.value = ''; scheduleAutoSave(); });
 }
 
 function readFileAsDataURL(file) {
@@ -151,6 +154,7 @@ function onDrop(e, targetIdx) {
   screens.splice(targetIdx, 0, moved);
   dragSrcIndex = null;
   renderScreensList();
+  scheduleAutoSave();
 }
 
 function onDragEnd() {
@@ -168,6 +172,7 @@ function deleteScreen(id) {
     activeScreenId ? selectScreen(activeScreenId) : showEmpty();
   }
   renderScreensList();
+  scheduleAutoSave();
 }
 
 function selectScreen(id) {
@@ -260,6 +265,7 @@ function handleImageClick(e) {
   renderPins();
   renderAnnotations();
   renderScreensList();
+  scheduleAutoSave();
 
   setTimeout(() => {
     const el = document.getElementById('desc_' + ann.id);
@@ -318,6 +324,7 @@ function startPinDrag(e, ann) {
     const dy = upE.clientY - e.clientY;
     // If barely moved (<5px), it was a click — discard the undo entry
     if (!moved || Math.sqrt(dx * dx + dy * dy) < 5) undoStack.pop();
+    else scheduleAutoSave();
   };
 
   document.addEventListener('mousemove', onMove);
@@ -361,6 +368,7 @@ function clearPins() {
   renderPins();
   renderAnnotations();
   renderScreensList();
+  scheduleAutoSave();
 }
 
 // ============================
@@ -417,6 +425,7 @@ function updateAnnotation(id, field, value) {
   if (!ann) return;
   ann[field] = value;
   if (field === 'label') renderPins();
+  scheduleAutoSave();
 }
 
 function deleteAnnotation(id) {
@@ -429,17 +438,21 @@ function deleteAnnotation(id) {
   renderPins();
   renderAnnotations();
   renderScreensList();
+  scheduleAutoSave();
 }
 
 document.getElementById('sectionTitle').addEventListener('input', function () {
   const screen = getActive();
-  if (screen) screen.sectionTitle = this.value;
+  if (screen) { screen.sectionTitle = this.value; scheduleAutoSave(); }
 });
 
 document.getElementById('screenDescription').addEventListener('input', function () {
   const screen = getActive();
-  if (screen) screen.description = this.value;
+  if (screen) { screen.description = this.value; scheduleAutoSave(); }
 });
+
+document.getElementById('manualTitle').addEventListener('input', scheduleAutoSave);
+document.getElementById('manualVersion').addEventListener('input', scheduleAutoSave);
 
 // ============================
 // SAVE / LOAD PROJECT (JSON)
@@ -461,6 +474,7 @@ function saveProject() {
   a.download = title.replace(/\s+/g, '-').toLowerCase() + '.docshot.json';
   a.click();
   URL.revokeObjectURL(url);
+  localStorage.removeItem(AUTOSAVE_KEY);
 }
 
 function loadProject() {
@@ -493,6 +507,7 @@ document.getElementById('projectFileInput').addEventListener('change', function 
       renderScreensList();
       if (activeScreenId) selectScreen(activeScreenId);
       else showEmpty();
+      scheduleAutoSave();
     } catch {
       alert('Error al cargar el proyecto: archivo inválido.');
     }
@@ -850,6 +865,7 @@ function clearAll() {
   document.getElementById('manualVersion').value = 'v1.0';
   renderScreensList();
   showEmpty();
+  localStorage.removeItem(AUTOSAVE_KEY);
 }
 
 // ============================
@@ -1139,6 +1155,95 @@ document.addEventListener('keydown', e => {
 document.getElementById('previewModal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closePreview();
 });
+
+// ============================
+// AUTO-SAVE (localStorage)
+// ============================
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(doAutoSave, 2000);
+}
+
+function doAutoSave() {
+  if (!screens.length) return;
+  try {
+    const data = JSON.stringify({
+      _docshot: '1.0',
+      title: document.getElementById('manualTitle').value,
+      version: document.getElementById('manualVersion').value,
+      savedAt: new Date().toISOString(),
+      screens,
+    });
+    localStorage.setItem(AUTOSAVE_KEY, data);
+    _showAutoSaveStatus();
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') {
+      _showAutoSaveStatus('⚠ Sin espacio para auto-guardar');
+    }
+  }
+}
+
+function _showAutoSaveStatus(msg) {
+  const el = document.getElementById('autoSaveStatus');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  el.textContent = msg || `auto-guardado ${time}`;
+  el.style.opacity = '1';
+  clearTimeout(el._fadeTimer);
+  el._fadeTimer = setTimeout(() => { el.style.opacity = '0'; }, 4000);
+}
+
+function checkAutoSave() {
+  try {
+    const data = localStorage.getItem(AUTOSAVE_KEY);
+    if (!data) return;
+    const project = JSON.parse(data);
+    if (!project._docshot || !Array.isArray(project.screens) || !project.screens.length) return;
+    const banner = document.getElementById('autoSaveBanner');
+    const timeEl = document.getElementById('autoSaveTime');
+    if (banner) {
+      if (timeEl && project.savedAt) {
+        const d = new Date(project.savedAt);
+        timeEl.textContent = d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+      }
+      banner.style.display = 'flex';
+    }
+  } catch { /* ignore */ }
+}
+
+function restoreAutoSave() {
+  try {
+    const data = localStorage.getItem(AUTOSAVE_KEY);
+    if (!data) return;
+    const project = JSON.parse(data);
+    if (!project._docshot || !Array.isArray(project.screens)) return;
+    screens = project.screens.map(s => ({
+      ...s,
+      description: s.description || '',
+      pinCount: s.pinCount || s.annotations.length,
+      annotations: s.annotations || [],
+    }));
+    activeScreenId = screens.length ? screens[0].id : null;
+    selectedAnnotationId = null;
+    pinMode = false;
+    document.getElementById('manualTitle').value = project.title || '';
+    document.getElementById('manualVersion').value = project.version || '';
+    renderScreensList();
+    if (activeScreenId) selectScreen(activeScreenId);
+    else showEmpty();
+  } catch {
+    alert('Error al restaurar el auto-guardado.');
+  }
+  dismissAutoSaveBanner();
+}
+
+function dismissAutoSaveBanner() {
+  const banner = document.getElementById('autoSaveBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+// Check for auto-saved data when the app loads
+checkAutoSave();
 
 // ============================
 // UTILS

@@ -10,6 +10,15 @@
 
 <body>
 
+  <!-- AUTO-SAVE RECOVERY BANNER -->
+  <div id="autoSaveBanner" style="display:none">
+    <span>📦 Se encontró trabajo no guardado del <strong id="autoSaveTime"></strong>. ¿Deseas restaurarlo?</span>
+    <div class="autosave-banner-btns">
+      <button class="btn btn-accent" onclick="restoreAutoSave()">Restaurar</button>
+      <button class="btn btn-ghost" onclick="dismissAutoSaveBanner()">Descartar</button>
+    </div>
+  </div>
+
   <header>
     <!-- Logo + Proyecto -->
     <div class="header-logo-group">
@@ -20,6 +29,7 @@
       <div class="header-project-btns">
         <button class="btn btn-ghost btn-icon" onclick="saveProject()" title="Guardar proyecto">💾</button>
         <button class="btn btn-ghost btn-icon" onclick="loadProject()" title="Cargar proyecto">📂</button>
+        <span id="autoSaveStatus" class="autosave-status"></span>
       </div>
     </div>
 
