@@ -598,220 +598,236 @@ function buildExportHTML() {
 </html>`;
 }
 
-function exportPDF() {
+function loadHtml2PdfLib() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    script.onload  = () => resolve(window.html2pdf);
+    script.onerror = () => reject(new Error('CDN no disponible'));
+    document.head.appendChild(script);
+  });
+}
+
+async function exportPDF() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
+
+  // Loading feedback on all PDF buttons
+  const pdfBtns = [...document.querySelectorAll('.export-item')].filter(b => b.textContent.includes('PDF'));
+  pdfBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
+
+  let lib;
+  try {
+    lib = await loadHtml2PdfLib();
+  } catch {
+    alert('No se pudo cargar la librería PDF. Verifica tu conexión e intenta de nuevo.');
+    pdfBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+    return;
+  }
+
   const { title, version, date, sectionsHTML, coverPhotoUrl: cover } = buildPreviewContent();
   const filename = (document.getElementById('manualTitle').value || 'manual')
     .replace(/\s+/g, '-').toLowerCase();
 
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>${escHtml(title)}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  // Build content with all CSS inlined (no full document wrapper — html2pdf renders a fragment)
+  const content = `
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body, .pdf-root {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #0f172a;
+    font-size: 13px;
+    background: #fff;
+  }
 
-    @page {
-      size: A4;
-      margin: 18mm 16mm 18mm 16mm;
-    }
+  /* ── Cover ── */
+  .cover {
+    min-height: 257mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 20mm 12mm 18mm;
+    page-break-after: always;
+    break-after: page;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover-bg-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.22;
+    z-index: 0;
+  }
+  .cover-label, .cover-rule, .cover-title, .cover-meta { position: relative; z-index: 1; }
+  .cover-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 14px;
+  }
+  .cover-rule {
+    width: 48px;
+    height: 4px;
+    background: #0f172a;
+    border-radius: 2px;
+    margin-bottom: 20px;
+  }
+  .cover-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .cover-meta { font-size: 12px; color: #64748b; }
 
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      color: #0f172a;
-      font-size: 13px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+  /* ── Sections ── */
+  .preview-section {
+    page-break-before: always;
+    break-before: page;
+    padding-bottom: 8mm;
+  }
+  .preview-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .preview-section-num {
+    background: #0f172a;
+    color: white;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+  .preview-section-desc {
+    font-size: 12px;
+    color: #475569;
+    margin: 8px 0 10px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
 
-    /* ── Cover ── */
-    .cover {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: 0 10mm 18mm;
-      page-break-after: always;
-      break-after: page;
-      position: relative;
-      overflow: hidden;
-    }
-    .cover-bg-img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0.22;
-      z-index: 0;
-    }
-    .cover-label, .cover-rule, .cover-title, .cover-meta { position: relative; z-index: 1; }
-    .cover-label {
-      font-size: 10px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #64748b;
-      margin-bottom: 14px;
-    }
-    .cover-title {
-      font-size: 32px;
-      font-weight: 700;
-      color: #0f172a;
-      line-height: 1.2;
-      margin-bottom: 12px;
-    }
-    .cover-meta {
-      font-size: 12px;
-      color: #64748b;
-    }
-    .cover-rule {
-      width: 48px;
-      height: 4px;
-      background: #0f172a;
-      border-radius: 2px;
-      margin-bottom: 20px;
-    }
+  /* ── Image ── */
+  .preview-img-container {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .preview-img-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+  }
 
-    /* ── Section ── */
-    .preview-section {
-      break-before: page;
-      page-break-before: always;
-      padding-bottom: 8mm;
-    }
-    .preview-section:first-child { break-before: auto; page-break-before: avoid; }
+  /* ── Pins ── */
+  .preview-pin {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(255,255,255,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .preview-pin-num {
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+    font-family: monospace;
+    line-height: 1;
+  }
 
-    .preview-section-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 6px;
-      padding-bottom: 6px;
-      border-bottom: 2px solid #0f172a;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .preview-section-num {
-      background: #0f172a;
-      color: white;
-      font-size: 10px;
-      padding: 2px 7px;
-      border-radius: 3px;
-      font-family: monospace;
-    }
-    .preview-section-desc {
-      font-size: 12px;
-      color: #475569;
-      margin: 8px 0 10px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
+  /* ── Annotations ── */
+  .preview-annotations { margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
+  .preview-ann-item {
+    display: flex;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f8fafc;
+    border-left: 3px solid #e2e8f0;
+    margin-bottom: 4px;
+    align-items: flex-start;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .preview-ann-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+    font-family: monospace;
+    margin-top: 1px;
+  }
+  .preview-ann-label { font-size: 11px; font-weight: 600; color: #0f172a; font-family: monospace; }
+  .preview-ann-desc  { font-size: 12px; color: #475569; margin-top: 2px; white-space: pre-wrap; }
+</style>
 
-    /* ── Image ── */
-    .preview-img-container {
-      position: relative;
-      display: block;
-      width: 100%;
-      margin-bottom: 10px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .preview-img-container img {
-      width: 100%;
-      height: auto;
-      display: block;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-    }
-
-    /* ── Pins ── */
-    .preview-pin {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      border: 2px solid rgba(255,255,255,0.6);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .preview-pin-num {
-      font-size: 9px;
-      font-weight: 700;
-      color: white;
-      font-family: monospace;
-      line-height: 1;
-    }
-
-    /* ── Annotations list ── */
-    .preview-annotations {
-      margin-top: 6px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .preview-ann-item {
-      display: flex;
-      gap: 8px;
-      padding: 6px 10px;
-      background: #f8fafc;
-      border-left: 3px solid #e2e8f0;
-      margin-bottom: 4px;
-      align-items: flex-start;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .preview-ann-num {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      font-weight: 700;
-      color: white;
-      font-family: monospace;
-      margin-top: 1px;
-    }
-    .preview-ann-label { font-size: 11px; font-weight: 600; color: #0f172a; font-family: monospace; }
-    .preview-ann-desc { font-size: 12px; color: #475569; margin-top: 2px; white-space: pre-wrap; }
-  </style>
-</head>
-<body>
-
-  <!-- Cover page -->
+<div class="pdf-root">
   <div class="cover">
     ${cover ? `<img class="cover-bg-img" src="${cover}" alt="">` : ''}
     <div class="cover-label">Manual de usuario</div>
     <div class="cover-rule"></div>
     <div class="cover-title">${escHtml(title)}</div>
+    <div class="cover-meta">Versión ${escHtml(version)} &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${screens.length} sección${screens.length !== 1 ? 'es' : ''}</div>
   </div>
-
   ${sectionsHTML}
+</div>`;
 
-  <script>
-    window.onload = function() {
-      document.title = ${JSON.stringify(filename)};
-      setTimeout(function() { window.print(); }, 400);
-    };
-  <\/script>
-</body>
-</html>`;
+  // Temporary off-screen container so html2canvas can render it
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;top:0;left:-9999px;width:794px;background:#fff;';
+  container.innerHTML = content;
+  document.body.appendChild(container);
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
-  if (!win) {
-    URL.revokeObjectURL(url);
-    alert('El navegador bloqueó la ventana emergente. Por favor, permite ventanas emergentes para este sitio e intenta de nuevo.');
-    return;
+  try {
+    await lib()
+      .set({
+        margin: [18, 16, 18, 16],
+        filename: filename + '.pdf',
+        image: { type: 'jpeg', quality: 0.92 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] },
+      })
+      .from(container)
+      .save();
+  } catch (err) {
+    console.error('Error generando PDF:', err);
+    alert('Ocurrió un error al generar el PDF. Intenta de nuevo.');
+  } finally {
+    document.body.removeChild(container);
+    pdfBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
   }
-  // Revoke after the window has had time to load
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 function exportMarkdown() {
