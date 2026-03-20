@@ -580,8 +580,8 @@ function buildExportHTML() {
     .preview-section-desc { font-size: 14px; color: #475569; margin-bottom: 16px; line-height: 1.6; white-space: pre-wrap; }
     .preview-img-container { position: relative; display: inline-block; margin-bottom: 16px; max-width: 100%; }
     .preview-img-container img { max-width: 100%; border-radius: 6px; border: 1px solid #e2e8f0; display: block; }
-    .preview-pin { position: absolute; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: translate(-50%, -100%) rotate(-45deg); border: 1.5px solid rgba(0,0,0,0.2); }
-    .preview-pin-num { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); font-size: 10px; font-weight: 700; color: white; font-family: monospace; }
+    .preview-pin { position: absolute; width: 22px; height: 22px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,0.6); box-shadow: 0 1px 4px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+    .preview-pin-num { font-size: 10px; font-weight: 700; color: white; font-family: monospace; line-height: 1; }
     .preview-annotations { margin-top: 8px; }
     .preview-ann-item { display: flex; gap: 10px; padding: 8px 12px; background: #f8fafc; border-left: 3px solid #e2e8f0; border-radius: 0 6px 6px 0; margin-bottom: 6px; align-items: flex-start; }
     .preview-ann-num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; font-family: monospace; margin-top: 1px; }
@@ -728,20 +728,22 @@ function exportPDF() {
     /* ── Pins ── */
     .preview-pin {
       position: absolute;
-      width: 22px;
-      height: 22px;
-      border-radius: 50% 50% 50% 0;
-      transform: translate(-50%, -100%) rotate(-45deg);
-      border: 1.5px solid rgba(0,0,0,0.25);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255,255,255,0.6);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .preview-pin-num {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%) rotate(45deg);
       font-size: 9px;
       font-weight: 700;
       color: white;
       font-family: monospace;
+      line-height: 1;
     }
 
     /* ── Annotations list ── */
@@ -944,41 +946,29 @@ function renderCoverPhotoUI() {
 // ============================
 
 /**
- * Draws a map-pin shape on a canvas context.
- * tipX/tipY is the exact point the pin "points to" on the image.
+ * Draws a compact numbered circle centered at (cx, cy) on the canvas.
  */
-function drawPinOnCanvas(ctx, tipX, tipY, color, num, size) {
-  const r    = size * 0.42;       // circle head radius
-  const tailH = size * 0.55;      // tail height below circle center
-  const headCY = tipY - tailH;    // circle center Y
+function drawPinOnCanvas(ctx, cx, cy, color, num, size) {
+  const r = size * 0.5;
 
   ctx.save();
 
   // Drop shadow
-  ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur   = size * 0.25;
+  ctx.shadowColor   = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur    = size * 0.3;
   ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = size * 0.08;
+  ctx.shadowOffsetY = size * 0.1;
 
-  // Tail triangle
+  // Filled circle
   ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(tipX - r * 0.55, headCY + r * 0.6);
-  ctx.lineTo(tipX + r * 0.55, headCY + r * 0.6);
-  ctx.closePath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
 
-  // Circle head (shadow only on tail, reset before circle for cleaner look)
+  // White border
   ctx.shadowColor = 'transparent';
-  ctx.beginPath();
-  ctx.arc(tipX, headCY, r, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-
-  // Circle border
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.lineWidth   = Math.max(1, size * 0.06);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth   = Math.max(1.5, size * 0.07);
   ctx.stroke();
 
   ctx.restore();
@@ -989,7 +979,9 @@ function drawPinOnCanvas(ctx, tipX, tipY, color, num, size) {
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle    = 'white';
-  ctx.fillText(String(num), tipX, headCY);
+  ctx.shadowColor  = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur   = 2;
+  ctx.fillText(String(num), cx, cy);
   ctx.restore();
 }
 
@@ -1009,8 +1001,8 @@ function compositeImageWithPins(screen) {
       ctx.drawImage(img, 0, 0);
 
       if (screen.annotations.length) {
-        // Pin size scales with image but stays between 28–80 px
-        const pinSize = Math.max(28, Math.min(img.naturalWidth * 0.035, 80));
+        // Pin size scales with image but stays between 20–52 px
+        const pinSize = Math.max(20, Math.min(img.naturalWidth * 0.025, 52));
         for (const ann of screen.annotations) {
           const x = (ann.x / 100) * img.naturalWidth;
           const y = (ann.y / 100) * img.naturalHeight;

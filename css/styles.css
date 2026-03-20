@@ -631,12 +631,16 @@ main {
   position: absolute;
   width: var(--pin-size);
   height: var(--pin-size);
-  border-radius: 50% 50% 50% 0;
-  transform: translate(-50%, -100%) rotate(-45deg);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
   cursor: grab;
   z-index: 20;
-  transition: transform 0.15s, filter 0.15s;
-  border: 2px solid rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s, filter 0.15s, box-shadow 0.15s;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pin:active {
@@ -644,26 +648,23 @@ main {
 }
 
 .pin:hover {
-  transform: translate(-50%, -100%) rotate(-45deg) scale(1.2);
-  filter: brightness(1.2);
+  transform: translate(-50%, -50%) scale(1.25);
+  filter: brightness(1.15);
 }
 
 .pin.selected {
-  filter: brightness(1.3);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.45), 0 2px 6px rgba(0,0,0,0.5);
+  filter: brightness(1.15);
 }
 
 .pin-number {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(45deg);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: white;
   line-height: 1;
   pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
 }
 
 /* ── SIDEBAR RIGHT ── */
