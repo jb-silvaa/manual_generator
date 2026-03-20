@@ -83,6 +83,23 @@
   <main>
     <!-- LEFT SIDEBAR — screenshots list -->
     <aside class="sidebar-left">
+      <!-- Cover photo -->
+      <div class="cover-photo-section">
+        <div class="cover-photo-header">
+          <span class="sidebar-title">Portada</span>
+          <span class="optional-badge">opcional</span>
+        </div>
+        <label class="cover-photo-zone" id="coverPhotoZone" for="coverPhotoInput">
+          <span id="coverPhotoEmpty" class="cover-photo-empty">
+            <span style="font-size:20px;">🖼</span>
+            <span>Agregar foto de portada</span>
+          </span>
+          <img id="coverPhotoPreview" style="display:none;" alt="Portada">
+        </label>
+        <button id="removeCoverPhotoBtn" class="btn btn-ghost cover-photo-remove" onclick="removeCoverPhoto()" style="display:none;">✕ Quitar foto</button>
+        <input type="file" id="coverPhotoInput" accept="image/*" style="display:none;">
+      </div>
+
       <div class="sidebar-header">
         <span class="sidebar-title">Pantallas</span>
         <span class="version-badge" id="screenCount">0 pantallas</span>

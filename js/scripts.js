@@ -8,6 +8,7 @@ let _autoSaveTimer = null;
 
 // screens: [{ id, name, dataUrl, sectionTitle, description, pinCount, annotations: [{id, x, y, label, desc, color, num}] }]
 let screens = [];
+let coverPhotoUrl = null;
 let activeScreenId = null;
 let pinMode = false;
 let selectedPinColor = PIN_COLORS[0];
@@ -464,6 +465,7 @@ function saveProject() {
     title: document.getElementById('manualTitle').value,
     version: document.getElementById('manualVersion').value,
     savedAt: new Date().toISOString(),
+    coverPhotoUrl: coverPhotoUrl || null,
     screens,
   };
   const blob = new Blob([JSON.stringify(project)], { type: 'application/json;charset=utf-8' });
@@ -499,12 +501,14 @@ document.getElementById('projectFileInput').addEventListener('change', function 
         pinCount: s.pinCount || s.annotations.length,
         annotations: s.annotations || [],
       }));
+      coverPhotoUrl = project.coverPhotoUrl || null;
       activeScreenId = screens.length ? screens[0].id : null;
       selectedAnnotationId = null;
       pinMode = false;
       document.getElementById('manualTitle').value = project.title || '';
       document.getElementById('manualVersion').value = project.version || '';
       renderScreensList();
+      renderCoverPhotoUI();
       if (activeScreenId) selectScreen(activeScreenId);
       else showEmpty();
       scheduleAutoSave();
@@ -554,11 +558,11 @@ function buildPreviewContent() {
       </div>`;
   }).join('');
 
-  return { title, version, date, sectionsHTML };
+  return { title, version, date, sectionsHTML, coverPhotoUrl };
 }
 
 function buildExportHTML() {
-  const { title, version, date, sectionsHTML } = buildPreviewContent();
+  const { title, version, date, sectionsHTML, coverPhotoUrl: cover } = buildPreviewContent();
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -583,9 +587,11 @@ function buildExportHTML() {
     .preview-ann-num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; font-family: monospace; margin-top: 1px; }
     .preview-ann-label { font-size: 12px; font-weight: 600; color: #0f172a; font-family: monospace; }
     .preview-ann-desc { font-size: 13px; color: #475569; margin-top: 2px; white-space: pre-wrap; }
+    .export-cover-img { width: 100%; max-height: 420px; object-fit: cover; border-radius: 8px; margin-bottom: 28px; display: block; }
   </style>
 </head>
 <body>
+  ${cover ? `<img class="export-cover-img" src="${cover}" alt="Portada">` : ''}
   <div class="preview-title">${escHtml(title)}</div>
   ${sectionsHTML}
 </body>
@@ -594,7 +600,7 @@ function buildExportHTML() {
 
 function exportPDF() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
-  const { title, version, date, sectionsHTML } = buildPreviewContent();
+  const { title, version, date, sectionsHTML, coverPhotoUrl: cover } = buildPreviewContent();
   const filename = (document.getElementById('manualTitle').value || 'manual')
     .replace(/\s+/g, '-').toLowerCase();
 
@@ -624,11 +630,23 @@ function exportPDF() {
       height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      padding: 0 10mm;
+      justify-content: flex-end;
+      padding: 0 10mm 18mm;
       page-break-after: always;
       break-after: page;
+      position: relative;
+      overflow: hidden;
     }
+    .cover-bg-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.22;
+      z-index: 0;
+    }
+    .cover-label, .cover-rule, .cover-title, .cover-meta { position: relative; z-index: 1; }
     .cover-label {
       font-size: 10px;
       letter-spacing: 3px;
@@ -765,6 +783,7 @@ function exportPDF() {
 
   <!-- Cover page -->
   <div class="cover">
+    ${cover ? `<img class="cover-bg-img" src="${cover}" alt="">` : ''}
     <div class="cover-label">Manual de usuario</div>
     <div class="cover-rule"></div>
     <div class="cover-title">${escHtml(title)}</div>
@@ -801,7 +820,7 @@ function exportMarkdown() {
   const date = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
   let md = `# ${title}\n\n`;
-
+  if (coverPhotoUrl) md += `![Portada](${coverPhotoUrl})\n\n`;
 
   screens.forEach((s, idx) => {
     md += `## ${String(idx + 1).padStart(2, '0')}. ${s.sectionTitle || s.name}\n\n`;
@@ -828,10 +847,10 @@ function exportMarkdown() {
 
 function openPreview() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
-  const { title, version, date, sectionsHTML } = buildPreviewContent();
+  const { title, version, date, sectionsHTML, coverPhotoUrl: cover } = buildPreviewContent();
   document.getElementById('manualPreview').innerHTML = `
+    ${cover ? `<div class="preview-cover"><img class="preview-cover-img" src="${cover}" alt="Portada"></div>` : ''}
     <div class="preview-title">${escHtml(title)}</div>
-
     ${sectionsHTML}
   `;
   document.getElementById('previewModal').classList.add('open');
@@ -858,14 +877,67 @@ function clearAll() {
   if (!confirm('¿Limpiar todo el contenido?')) return;
   pushUndo();
   screens = [];
+  coverPhotoUrl = null;
   activeScreenId = null;
   selectedAnnotationId = null;
   pinMode = false;
   document.getElementById('manualTitle').value = 'Manual de Usuario';
   document.getElementById('manualVersion').value = 'v1.0';
   renderScreensList();
+  renderCoverPhotoUI();
   showEmpty();
   localStorage.removeItem(AUTOSAVE_KEY);
+}
+
+// ============================
+// COVER PHOTO
+// ============================
+document.getElementById('coverPhotoInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  readFileAsDataURL(file).then(dataUrl => {
+    coverPhotoUrl = dataUrl;
+    renderCoverPhotoUI();
+    scheduleAutoSave();
+  });
+  this.value = '';
+});
+
+const coverPhotoZone = document.getElementById('coverPhotoZone');
+coverPhotoZone.addEventListener('dragover', e => { e.preventDefault(); coverPhotoZone.classList.add('dragover'); });
+coverPhotoZone.addEventListener('dragleave', () => coverPhotoZone.classList.remove('dragover'));
+coverPhotoZone.addEventListener('drop', e => {
+  e.preventDefault();
+  coverPhotoZone.classList.remove('dragover');
+  const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+  if (!file) return;
+  readFileAsDataURL(file).then(dataUrl => {
+    coverPhotoUrl = dataUrl;
+    renderCoverPhotoUI();
+    scheduleAutoSave();
+  });
+});
+
+function removeCoverPhoto() {
+  coverPhotoUrl = null;
+  renderCoverPhotoUI();
+  scheduleAutoSave();
+}
+
+function renderCoverPhotoUI() {
+  const preview = document.getElementById('coverPhotoPreview');
+  const empty = document.getElementById('coverPhotoEmpty');
+  const removeBtn = document.getElementById('removeCoverPhotoBtn');
+  if (coverPhotoUrl) {
+    preview.src = coverPhotoUrl;
+    preview.style.display = 'block';
+    empty.style.display = 'none';
+    removeBtn.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+    empty.style.display = 'flex';
+    removeBtn.style.display = 'none';
+  }
 }
 
 // ============================
@@ -1008,6 +1080,27 @@ async function exportDOCX() {
   const children = [];
 
   // ── Cover ──────────────────────────────────────────
+  if (coverPhotoUrl) {
+    try {
+      const coverImg = new Image();
+      await new Promise(res => { coverImg.onload = res; coverImg.onerror = res; coverImg.src = coverPhotoUrl; });
+      const coverW = Math.min(coverImg.naturalWidth || 800, 605);
+      const coverH = coverImg.naturalHeight
+        ? Math.round((coverImg.naturalHeight / (coverImg.naturalWidth || coverW)) * coverW)
+        : Math.round(coverW * 9 / 16);
+      children.push(new Paragraph({
+        children: [new ImageRun({
+          data: dataUrlToUint8Array(coverPhotoUrl),
+          transformation: { width: coverW, height: coverH },
+          type: coverPhotoUrl.startsWith('data:image/png') ? 'png' : 'jpg',
+        })],
+        spacing: { after: 320 },
+      }));
+    } catch (err) {
+      console.warn('Error embedding cover photo in DOCX:', err);
+    }
+  }
+
   children.push(
     new Paragraph({
       children: [new TextRun({ text: title, bold: true, size: 64, color: '0f172a' })],
@@ -1172,6 +1265,7 @@ function doAutoSave() {
       title: document.getElementById('manualTitle').value,
       version: document.getElementById('manualVersion').value,
       savedAt: new Date().toISOString(),
+      coverPhotoUrl: coverPhotoUrl || null,
       screens,
     });
     localStorage.setItem(AUTOSAVE_KEY, data);
@@ -1223,12 +1317,14 @@ function restoreAutoSave() {
       pinCount: s.pinCount || s.annotations.length,
       annotations: s.annotations || [],
     }));
+    coverPhotoUrl = project.coverPhotoUrl || null;
     activeScreenId = screens.length ? screens[0].id : null;
     selectedAnnotationId = null;
     pinMode = false;
     document.getElementById('manualTitle').value = project.title || '';
     document.getElementById('manualVersion').value = project.version || '';
     renderScreensList();
+    renderCoverPhotoUI();
     if (activeScreenId) selectScreen(activeScreenId);
     else showEmpty();
   } catch {
