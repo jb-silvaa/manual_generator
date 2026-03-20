@@ -598,12 +598,12 @@ function buildExportHTML() {
 </html>`;
 }
 
-function loadHtml2PdfLib() {
-  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+function loadJsPdfLib() {
+  if (window.jspdf) return Promise.resolve(window.jspdf);
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-    script.onload  = () => resolve(window.html2pdf);
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload  = () => resolve(window.jspdf);
     script.onerror = () => reject(new Error('CDN no disponible'));
     document.head.appendChild(script);
   });
@@ -612,222 +612,173 @@ function loadHtml2PdfLib() {
 async function exportPDF() {
   if (screens.length === 0) { alert('Agrega al menos una pantalla primero.'); return; }
 
-  // Loading feedback on all PDF buttons
   const pdfBtns = [...document.querySelectorAll('.export-item')].filter(b => b.textContent.includes('PDF'));
   pdfBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
 
   let lib;
   try {
-    lib = await loadHtml2PdfLib();
+    lib = await loadJsPdfLib();
   } catch {
     alert('No se pudo cargar la librería PDF. Verifica tu conexión e intenta de nuevo.');
     pdfBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
     return;
   }
 
-  const { title, version, date, sectionsHTML, coverPhotoUrl: cover } = buildPreviewContent();
-  const filename = (document.getElementById('manualTitle').value || 'manual')
-    .replace(/\s+/g, '-').toLowerCase();
+  const { jsPDF } = lib;
+  const title    = document.getElementById('manualTitle').value  || 'Manual de Usuario';
+  const version  = document.getElementById('manualVersion').value || 'v1.0';
+  const date     = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+  const filename = title.replace(/\s+/g, '-').toLowerCase();
 
-  // Build content with all CSS inlined (no full document wrapper — html2pdf renders a fragment)
-  const content = `
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body, .pdf-root {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    color: #0f172a;
-    font-size: 13px;
-    background: #fff;
-  }
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-  /* ── Cover ── */
-  .cover {
-    min-height: 257mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    padding: 20mm 12mm 18mm;
-    page-break-after: always;
-    break-after: page;
-    position: relative;
-    overflow: hidden;
-  }
-  .cover-bg-img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.22;
-    z-index: 0;
-  }
-  .cover-label, .cover-rule, .cover-title, .cover-meta { position: relative; z-index: 1; }
-  .cover-label {
-    font-size: 10px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: 14px;
-  }
-  .cover-rule {
-    width: 48px;
-    height: 4px;
-    background: #0f172a;
-    border-radius: 2px;
-    margin-bottom: 20px;
-  }
-  .cover-title {
-    font-size: 32px;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.2;
-    margin-bottom: 12px;
-  }
-  .cover-meta { font-size: 12px; color: #64748b; }
+  const PW  = 210;  // page width mm
+  const PH  = 297;  // page height mm
+  const MX  = 16;   // margin horizontal
+  const MY  = 18;   // margin vertical
+  const CW  = PW - MX * 2;  // content width
 
-  /* ── Sections ── */
-  .preview-section {
-    page-break-before: always;
-    break-before: page;
-    padding-bottom: 8mm;
-  }
-  .preview-section-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #0f172a;
-    margin-bottom: 6px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #0f172a;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .preview-section-num {
-    background: #0f172a;
-    color: white;
-    font-size: 10px;
-    padding: 2px 7px;
-    border-radius: 3px;
-    font-family: monospace;
-  }
-  .preview-section-desc {
-    font-size: 12px;
-    color: #475569;
-    margin: 8px 0 10px;
-    line-height: 1.6;
-    white-space: pre-wrap;
+  // ── helpers ──────────────────────────────────────────────────────────────
+  function hexRgb(hex) {
+    return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
   }
 
-  /* ── Image ── */
-  .preview-img-container {
-    position: relative;
-    display: block;
-    width: 100%;
-    margin-bottom: 10px;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .preview-img-container img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
+  // Adds wrapped text, returns new Y after the block
+  function addText(text, x, y, opts = {}) {
+    const { size = 11, bold = false, color = [15,23,42], maxW = CW, lineH } = opts;
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(String(text || ''), maxW);
+    const lh = lineH || (size * 0.38);
+    doc.text(lines, x, y);
+    return y + lines.length * lh;
   }
 
-  /* ── Pins ── */
-  .preview-pin {
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    border: 2px solid rgba(255,255,255,0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .preview-pin-num {
-    font-size: 9px;
-    font-weight: 700;
-    color: white;
-    font-family: monospace;
-    line-height: 1;
+  // Returns estimated height of wrapped text block in mm (without drawing)
+  function textH(text, opts = {}) {
+    const { size = 11, maxW = CW, lineH } = opts;
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(String(text || ''), maxW);
+    return lines.length * (lineH || (size * 0.38));
   }
 
-  /* ── Annotations ── */
-  .preview-annotations { margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
-  .preview-ann-item {
-    display: flex;
-    gap: 8px;
-    padding: 6px 10px;
-    background: #f8fafc;
-    border-left: 3px solid #e2e8f0;
-    margin-bottom: 4px;
-    align-items: flex-start;
-    page-break-inside: avoid;
-    break-inside: avoid;
+  // Horizontal rule
+  function hRule(y, color = [15,23,42], w = 0.5) {
+    doc.setDrawColor(...color);
+    doc.setLineWidth(w);
+    doc.line(MX, y, PW - MX, y);
   }
-  .preview-ann-num {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    color: white;
-    font-family: monospace;
-    margin-top: 1px;
+
+  // Check remaining space; add new page if needed, returns (possibly reset) y
+  function ensureSpace(y, needed) {
+    if (y + needed > PH - MY) { doc.addPage(); return MY; }
+    return y;
   }
-  .preview-ann-label { font-size: 11px; font-weight: 600; color: #0f172a; font-family: monospace; }
-  .preview-ann-desc  { font-size: 12px; color: #475569; margin-top: 2px; white-space: pre-wrap; }
-</style>
 
-<div class="pdf-root">
-  <div class="cover">
-    ${cover ? `<img class="cover-bg-img" src="${cover}" alt="">` : ''}
-    <div class="cover-label">Manual de usuario</div>
-    <div class="cover-rule"></div>
-    <div class="cover-title">${escHtml(title)}</div>
-    <div class="cover-meta">Versión ${escHtml(version)} &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${screens.length} sección${screens.length !== 1 ? 'es' : ''}</div>
-  </div>
-  ${sectionsHTML}
-</div>`;
+  // ── COVER PAGE ───────────────────────────────────────────────────────────
+  let y = MY;
 
-  // Temporary off-screen container so html2canvas can render it
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;top:0;left:-9999px;width:794px;background:#fff;';
-  container.innerHTML = content;
-  document.body.appendChild(container);
-
-  try {
-    await lib()
-      .set({
-        margin: [18, 16, 18, 16],
-        filename: filename + '.pdf',
-        image: { type: 'jpeg', quality: 0.92 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
-      })
-      .from(container)
-      .save();
-  } catch (err) {
-    console.error('Error generando PDF:', err);
-    alert('Ocurrió un error al generar el PDF. Intenta de nuevo.');
-  } finally {
-    document.body.removeChild(container);
-    pdfBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+  if (coverPhotoUrl) {
+    try {
+      const ci = new Image();
+      await new Promise(r => { ci.onload = r; ci.onerror = r; ci.src = coverPhotoUrl; });
+      const aspect  = (ci.naturalHeight || 9) / (ci.naturalWidth || 16);
+      const imgH    = Math.min(CW * aspect, 110);
+      const fmt     = coverPhotoUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(coverPhotoUrl, fmt, MX, y, CW, imgH);
+      y += imgH + 10;
+    } catch (e) { console.warn('Cover photo error:', e); }
   }
+
+  // Push title toward lower third if no photo
+  if (!coverPhotoUrl) y = PH * 0.55;
+
+  // Label
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('MANUAL DE USUARIO', MX, y);
+  y += 5;
+
+  // Thick rule
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(1.2);
+  doc.line(MX, y, MX + 22, y);
+  y += 7;
+
+  // Title
+  y = addText(title, MX, y, { size: 26, bold: true, maxW: CW });
+  y += 3;
+
+  // Meta
+  addText(`Versión ${version}  ·  ${date}  ·  ${screens.length} sección${screens.length !== 1 ? 'es' : ''}`,
+    MX, y, { size: 10, color: [100, 116, 139] });
+
+  // ── SECTIONS ─────────────────────────────────────────────────────────────
+  for (const [idx, screen] of screens.entries()) {
+    doc.addPage();
+    y = MY;
+
+    // Section heading
+    const sectionLabel = `${String(idx + 1).padStart(2,'0')}  ${screen.sectionTitle || screen.name}`;
+    y = addText(sectionLabel, MX, y, { size: 13, bold: true });
+    y += 1;
+    hRule(y);
+    y += 5;
+
+    // Description
+    if (screen.description) {
+      y = addText(screen.description, MX, y, { size: 10, color: [71,85,105] });
+      y += 4;
+    }
+
+    // Composited image with pins
+    try {
+      const { dataUrl, width: iw, height: ih } = await compositeImageWithPins(screen);
+      const aspect = ih / iw;
+      const dispW  = CW;
+      const dispH  = Math.min(dispW * aspect, PH - y - MY - 10);
+      doc.addImage(dataUrl, 'PNG', MX, y, dispW, dispH);
+      y += dispH + 4;
+    } catch (e) {
+      console.warn('Image error:', screen.name, e);
+    }
+
+    // Annotations
+    if (screen.annotations.length) {
+      y = ensureSpace(y, 10);
+      y = addText('Anotaciones', MX, y, { size: 10, bold: true });
+      y += 3;
+
+      for (const ann of screen.annotations) {
+        const descH = ann.desc ? textH(ann.desc, { size: 9, maxW: CW - 9 }) : 0;
+        y = ensureSpace(y, 6 + descH);
+
+        // Colored circle
+        const [r,g,b] = hexRgb(ann.color);
+        doc.setFillColor(r, g, b);
+        doc.circle(MX + 3, y - 1, 2.8, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text(String(ann.num), MX + 3, y - 0.2, { align: 'center' });
+
+        // Label
+        const ax = MX + 9;
+        y = addText(ann.label, ax, y, { size: 10, bold: true, maxW: CW - 9 });
+
+        // Description
+        if (ann.desc) {
+          y = addText(ann.desc, ax, y, { size: 9, color: [71,85,105], maxW: CW - 9 });
+        }
+        y += 2;
+      }
+    }
+  }
+
+  doc.save(filename + '.pdf');
+  pdfBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
 }
 
 function exportMarkdown() {
